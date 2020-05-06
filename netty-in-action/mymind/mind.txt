@@ -1,0 +1,34 @@
+// 记录Netty实战的读后感
+组成部分:
+    实际传输部分:
+        1. Channel  ===> 相当于Socket，优化了使用的复杂度，其在创建的时候就绑定了一个ChannelPipeline;
+        2. ChannelGroup ===> 从字面理解就是一个Channel组，有着批量操作的作用;
+
+    回调部分:
+        1. ChannelFuture ===> 有着占位符的意义，每一个操作都会返回一个这个对象，配合ChannelListener使用可以监听该操作完成与否;
+        2. ChannelPromise ===> ChannelFuture的子接口，多了一些设置状态的方法，就是ChannelFuture的增强嘛;
+        3. ChannelListener ===> 回调的监听器，可以设置前一个动作完成后或者失败后的一些操作;
+
+    事件处理部分:
+        1. EventLoop ===> 负责执行连接期间触发的各种任务，绑定了一个EventExecutor用于执行各种包装任务，感觉相当于一个线程池，维护了一个任务队列，在整个生命周期内只与一个Thread绑定，维护了一个选择器(Selector,具体理念要看一下Java的NIO)，将Channel注册到选择器中的HashSet里面。负责监视Channel的状态变化，run方法就是一直在循环拿任务;
+        2. EventLoopGroup ===> 主要负责创建EventLoop，数量可以通过配置'io.netty.eventLoopThreads'系统属性来设置，默认值是通过'io.netty.availableProcessors'系统属性和Runtime.getRuntime().availableProc essors()方法去控制的。还有将新的Channel平均分布注册到子EventLoop上面去;
+
+    流水线处理链部分:
+        1.ChannelPipeline ===> 一条组装着所有出/入站Handler的流水线，负责将Handler注册上，为其绑定一个ChannelHandlerContext，默认的Pipeline初始的时候已经有2个Context，分别是HeadContext和TailContext，数据出站时通过HeadContext的Write方法完成的，底层调用的是Channel的UnSafe内部类
+        2.ChannelHandler ===> 负责处理出/入站的数据，系统的业务逻辑主要在这里面去实现，与ChannelPipeline结合在一起，有着数据过滤器链的意思在里面，一些编码解码器其实就是相当于Handler;
+        3.ChannelHandlerContext ===> 负责将Pipeline中的Handler串联起来，让数据流经相关的Handler。鉴于对数据写出，其实也是调用的Channel来实现的;
+
+    数据容器部分:
+        1. ByteBuf ===> 数据的一般容器，有直接缓冲区，堆缓冲区，复合缓冲区等数据存储概念。有读写索引，与JDK的相比较的话就是不用切换模式来读写数据，因为JDK中的ByteBuffer只有一个索引。可以有丢弃部分数据的操作，但这会导致剩余数据会重新调整现有的索引位置，所以还是直接使用clean方法来只清除掉2个索引的计数比较轻量一点。类似其他的类，如：ByteBufHolder，ByteBufAllocator，Unpooled，ByteBufUtil都是跟ByteBuf相关的;
+
+    引导部分:
+        1. BootStrap ===> 客户端使用的
+        2. ServerBootStrap ===> 服务端使用的，注意的是，服务端可能要配置2个EventLoopGroup比较好点，一个用来处理监听端口所接收的连接请求时创建新的Channel，另外一个就是处理这些创建出来的Channel所产生的I/O事件;
+
+未解之谜:
+    1. EventLoop怎么去监听Channel生命周期的状态变化和事件产生，代码中能看到维护了一个Selector，这部分可能要去看NIO?毕竟说Netty中的NIO是基于Java-NIO实现的。
+    2. Channel接收数据的时候，整个流程是怎么样的？例如：是先经过Pipeline处理呢？还是说由EventLoop监听到事件产生，然后去开始相关流程，感觉这里不懂，这书是白看了。。。
+
+总结: EventLoop部分需要细嚼慢咽，当然在整个框架中每个部分都必不可少，各自承担相应的职能。可能是我功力不够，只把不懂的地方当作是优秀的部分，感觉其实现在有很多的概念都不是很懂，只停留在知道每个组件的职责这个等级。并没有完全理解吃透整个框架，但是我觉得后面会慢慢理解清楚的，毕竟自己也不是大神，时间会慢慢消化沉淀所学习过的知识;
+																												
+																												2020-05-06
